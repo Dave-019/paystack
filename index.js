@@ -14,29 +14,42 @@ const api = new GhostAdminAPI({
 
 app.use(bodyParser.json());
 
+// THIS IS THE DIAGNOSTIC PART
 app.post('/paystack-webhook', async (req, res) => {
+    console.log("--- WEBHOOK RECEIVED ---");
+    console.log("Event Type:", req.body.event);
+    console.log("Customer Email:", req.body.data ? req.body.data.customer.email : "No Data");
+
     const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
                        .update(JSON.stringify(req.body))
                        .digest('hex');
 
-    if (hash !== req.headers['x-paystack-signature']) return res.status(400).send();
+    if (hash !== req.headers['x-paystack-signature']) {
+        console.log("❌ SIGNATURE VERIFICATION FAILED");
+        return res.status(400).send('Invalid signature');
+    }
 
     const event = req.body;
-    if (event.event === 'charge.success' || event.event === 'subscription.create') {
+    if (event.event === 'charge.success') {
         try {
+            console.log("✅ SIGNATURE OK. ATTEMPTING GHOST API...");
+            
             await api.members.add({
                 email: event.data.customer.email,
-                name: event.data.customer.first_name || '',
-                labels: ['the awesome me']
+                name: event.data.customer.first_name || 'Subscriber',
+                tiers: [{name: 'the awesome me'}] 
             }, { send_email: true, email_type: 'signup' });
-            res.status(200).send('Success');
+            
+            console.log(`🚀 SUCCESS: Member ${event.data.customer.email} added to Ghost!`);
+            res.status(200).send('Member Added');
         } catch (err) {
-            console.error(err);
-            res.status(500).send('Error');
+            console.log("❌ GHOST API ERROR:", err.message);
+            res.status(500).send('Ghost Error');
         }
     } else {
+        console.log("ℹ️ Event ignored (not a charge.success)");
         res.status(200).send('Ignored');
     }
 });
 
-app.listen(PORT, () => console.log(`Listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Debug Middleware running on port ${PORT}`));
