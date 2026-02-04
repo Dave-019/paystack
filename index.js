@@ -27,7 +27,7 @@ app.post('/paystack-webhook', async (req, res) => {
             await api.members.add({
                 email: event.data.customer.email,
                 name: event.data.customer.first_name || '',
-                labels: ['Premium']
+                labels: ['the awesome me']
             }, { send_email: true, email_type: 'signup' });
             res.status(200).send('Success');
         } catch (err) {
